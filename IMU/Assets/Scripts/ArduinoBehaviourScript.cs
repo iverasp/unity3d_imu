@@ -5,7 +5,7 @@ using System.IO.Ports;
 public class ArduinoBehaviourScript : MonoBehaviour
 {
 
-	public static SerialPort serialPort = new SerialPort ("/dev/cu.usbmodem1d1142", 115200);
+	public static SerialPort serialPort = new SerialPort ("/dev/cu.usbmodem1a121", 115200);
 	public static string inputString;
 
 	// Use this for initialization
@@ -20,6 +20,16 @@ public class ArduinoBehaviourScript : MonoBehaviour
 		inputString = serialPort.ReadLine ();
 		print (inputString);
 		string[] param = inputString.Split (';');
+
+		if (param.Length == 4) {
+			float w = (float.Parse (param [0]));
+			float x = (float.Parse (param [1]));
+			float y = (float.Parse (param [2]));
+			float z = (float.Parse (param [3]));
+			TransformCube (w, x, y, z);
+		}
+
+
 		if (param.Length == 3) {
 			float yaw = (float.Parse (param [0]));// / 0.3f) * 360f;
 			float pitch = (float.Parse (param [1]));// / 0.3f) * 360f;
@@ -27,7 +37,18 @@ public class ArduinoBehaviourScript : MonoBehaviour
 			TransformCube (yaw, pitch, roll);
 		}
 
+
 	}
+
+	void TransformCube (float w, float x, float y, float z) {
+		Quaternion quat = Quaternion.identity;
+		quat.w = w;
+		quat.x = y;
+		quat.y = z;
+		quat.z = x;
+		gameObject.transform.rotation = quat;
+	}
+		
 
 	void TransformCube(float yaw, float pitch, float roll) {
 		print ("transforming cube...");
