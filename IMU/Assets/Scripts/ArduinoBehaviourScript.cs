@@ -5,7 +5,7 @@ using System.IO.Ports;
 public class ArduinoBehaviourScript : MonoBehaviour
 {
 
-	public static SerialPort serialPort = new SerialPort ("/dev/cu.usbmodem1a121", 115200);
+	public static SerialPort serialPort = new SerialPort ("/dev/cu.usbmodem1A132", 9600);
 	public static string inputString;
 
 	// Use this for initialization
