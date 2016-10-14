@@ -1,23 +1,35 @@
 import logging
 import time
 import uuid
+import socket
 
 import Adafruit_BluefruitLE
 
 
 # Enable debug output.
-#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
 # Define service and characteristic UUIDs used by the IMU service.
-IMU_SERVICE_UUID = uuid.UUID('0xA000')
-W_CHAR_UUID      = uuid.UUID('0xA001')
-X_CHAR_UUID      = uuid.UUID('0xA002')
-Y_CHAR_UUID      = uuid.UUID('0xA003')
-Z_CHAR_UUID      = uuid.UUID('0xA004')
+IMU_SERVICE_UUID = uuid.UUID('0000A000-0000-1000-8000-00805F9B34FB')
+W_CHAR_UUID      = uuid.UUID('0000A001-0000-1000-8000-00805F9B34FB')
+X_CHAR_UUID      = uuid.UUID('0000A002-0000-1000-8000-00805F9B34FB')
+Y_CHAR_UUID      = uuid.UUID('0000A003-0000-1000-8000-00805F9B34FB')
+Z_CHAR_UUID      = uuid.UUID('0000A004-0000-1000-8000-00805F9B34FB')
+
+# Define the host and port
+HOST = '' # localhost
+PORT = 33000
 
 # Get the BLE provider for the current platform.
 ble = Adafruit_BluefruitLE.get_provider()
 
+# Initialize the socket
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind((HOST, PORT))
+s.listen(1)
+
+# Define our quaternion
+quat = [0, 0, 0, 0] # (w, x, y, z)
 
 # Main function implements the program logic so it can run in a background
 # thread.  Most platforms require the main thread to handle GUI events and other
@@ -25,6 +37,7 @@ ble = Adafruit_BluefruitLE.get_provider()
 # of automatically though and you just need to provide a main function that uses
 # the BLE provider.
 def main():
+    #connection, address = s.accept()
     # Clear any cached data because both bluez and CoreBluetooth have issues with
     # caching data and it going stale.
     ble.clear_cached_data()
@@ -78,15 +91,21 @@ def main():
         # primitives to send data to other threads.
         def w_receiver(data):
             print('W : {0}'.format(data))
+            quat[0]= data
+            #connection.sendall(quat)
 
         def x_receiver(data):
             print('X : {0}'.format(data))
+            quat[1] = data
+            #connection.sendall(quat)
 
         def y_receiver(data):
             print('Y : {0}'.format(data))
+            #connection.sendall(quat)
 
         def z_receiver(data):
             print('Z : {0}'.format(data))
+            #connection.sendall(quat)
 
 
         # Turn on notification of characteristics using the callback above.
@@ -105,9 +124,11 @@ def main():
 
 
 # Initialize the BLE system.  MUST be called before other BLE calls!
+print("Initializing BLE")
 ble.initialize()
 
 # Start the mainloop to process BLE events, and run the provided function in
 # a background thread.  When the provided main function stops running, returns
 # an integer status code, or throws an error the program will exit.
+print("Running main loop")
 ble.run_mainloop_with(main)
