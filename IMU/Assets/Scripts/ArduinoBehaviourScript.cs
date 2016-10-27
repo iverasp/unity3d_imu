@@ -1,11 +1,14 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.IO.Ports;
+using System;
+using System.Linq;
+using System.Collections.Generic;
 
 public class ArduinoBehaviourScript : MonoBehaviour
 {
 
-	public static SerialPort serialPort = new SerialPort ("/dev/cu.usbmodem1a121", 115200);
+	public static SerialPort serialPort = new SerialPort ("/dev/cu.usbmodem1d11231", 115200);
 	public static string inputString;
 
 	// Use this for initialization
@@ -16,28 +19,33 @@ public class ArduinoBehaviourScript : MonoBehaviour
 	
 	// Update is called once per frame
 	void Update () {
-		
-		inputString = serialPort.ReadLine ();
-		print (inputString);
-		string[] param = inputString.Split (';');
 
-		if (param.Length == 4) {
-			float w = (float.Parse (param [0]));
-			float x = (float.Parse (param [1]));
-			float y = (float.Parse (param [2]));
-			float z = (float.Parse (param [3]));
-			TransformCube (w, x, y, z);
+		try {
+			inputString = serialPort.ReadLine ();
+			print (inputString);
+			string[] input = inputString.Split (':');
+
+			if (input.Length == 16) {
+				byte[] param = new byte[16];
+				for (int i = 0; i < 16; i++) {
+					param[i] = byte.Parse (input [i], System.Globalization.NumberStyles.HexNumber);
+				}
+
+				float w = ByteArrayToFloat (param, 0);
+				float x = ByteArrayToFloat (param, 4);
+				float y = ByteArrayToFloat (param, 8);
+				float z = ByteArrayToFloat (param, 12);
+				TransformCube (w, x, y, z);
+			}
+		} catch (TimeoutException) {
+			print ("TIMEOUT");
 		}
+		// Discard buffer in case we are not keeping up to speed with the IMUs
+		serialPort.DiscardInBuffer();
+	}
 
-
-		if (param.Length == 3) {
-			float yaw = (float.Parse (param [0]));// / 0.3f) * 360f;
-			float pitch = (float.Parse (param [1]));// / 0.3f) * 360f;
-			float roll = (float.Parse (param [2]));// / 0.3f) * 360f;
-			TransformCube (yaw, pitch, roll);
-		}
-
-
+	float ByteArrayToFloat(byte[] array, int index) {
+		return System.BitConverter.ToSingle (array, index);
 	}
 
 	void TransformCube (float w, float x, float y, float z) {
@@ -48,19 +56,6 @@ public class ArduinoBehaviourScript : MonoBehaviour
 		quat.z = x;
 		gameObject.transform.rotation = quat;
 	}
-		
-
-	void TransformCube(float yaw, float pitch, float roll) {
-		print ("transforming cube...");
-		//gameObject.transform.Rotate(0f, 0f, roll, Space.Self);
-		//gameObject.transform.Rotate(pitch, 0f, 0f, Space.Self);
-		//gameObject.transform.Rotate(0f, yaw, 0f, Space.Self);
-		Quaternion AddRot = Quaternion.identity;
-		AddRot.eulerAngles = new Vector3(pitch, yaw, -roll);
-		gameObject.transform.rotation = AddRot;
-		//gameObject.transform.rotation = Quaternion.Euler (pitch, -yaw, -roll);
-	
-	}
 
 	void OpenConnection() {
 		if (serialPort != null) {
@@ -69,7 +64,7 @@ public class ArduinoBehaviourScript : MonoBehaviour
 				print ("Closing port because it was already open!");
 			} else {
 				serialPort.Open ();
-				serialPort.ReadTimeout = 500;
+				serialPort.ReadTimeout = 40; // 25Hz
 				print ("Port opened");
 			}
 		} else {
