@@ -10,11 +10,17 @@ public class ArduinoBehaviourScript : MonoBehaviour
 
 	public static SerialPort serialPort = new SerialPort ("/dev/cu.usbmodem1d11231", 115200);
 	public static string inputString;
+	GameObject upperArmRight;
+	GameObject lowerArmRight;
+	GameObject head;
 
 	// Use this for initialization
 	void Start () {
 		
 		OpenConnection ();
+		upperArmRight = GameObject.Find("upperarm_r");
+		lowerArmRight = GameObject.Find ("lowerarm_r");
+		head = GameObject.Find ("head");
 	}
 	
 	// Update is called once per frame
@@ -54,7 +60,9 @@ public class ArduinoBehaviourScript : MonoBehaviour
 		quat.x = y;
 		quat.y = z;
 		quat.z = x;
-		gameObject.transform.rotation = quat;
+		//upperArmRight.transform.rotation = quat;
+		//lowerArmRight.transform.rotation = quat;
+		head.transform.rotation = quat;
 	}
 
 	void OpenConnection() {
