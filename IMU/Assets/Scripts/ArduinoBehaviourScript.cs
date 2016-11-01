@@ -4,17 +4,21 @@ using System.IO.Ports;
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.Threading;
 
 public class ArduinoBehaviourScript : MonoBehaviour
 {
 	int QUAT_RANGE = 1073741824; // 2^30
-	public static SerialPort serialPort = new SerialPort ("/dev/cu.usbmodem1d11231", 115200);
+	Thread uartThread;
+	public static SerialPort serialPort = new SerialPort ("/dev/cu.usbmodem1A131", 115200);
 	public static string inputString;
 	GameObject upperArmRight;
 	GameObject lowerArmRight;
 	GameObject head;
-	Quaternion initialPosition = Quaternion.identity;
-	bool firstReading = true;
+	Quaternion upperArmRightQuat = Quaternion.identity;
+	Quaternion lowerArmRightQuat = Quaternion.identity;
+	//Quaternion initialPosition = Quaternion.identity;
+	//bool firstReading = true;
 
 	// Use this for initialization
 	void Start () {
@@ -23,6 +27,9 @@ public class ArduinoBehaviourScript : MonoBehaviour
 		upperArmRight = GameObject.Find("upperarm_r");
 		lowerArmRight = GameObject.Find ("lowerarm_r");
 		head = GameObject.Find ("head");
+		ThreadStart mThreadStart = new ThreadStart (UARTStreamer);
+		uartThread = new Thread (mThreadStart);
+		uartThread.Start ();
 	}
 	
 	/*
@@ -32,46 +39,54 @@ public class ArduinoBehaviourScript : MonoBehaviour
 	 * The 4 bytes represents an 32-bit integer that is the value of the quaternion unit.
 	 * 
 	*/
-	void Update () {
 
+	void Update() {
+		upperArmRight.transform.rotation = upperArmRightQuat;
+		lowerArmRight.transform.rotation = lowerArmRightQuat;
+
+	}
+
+	void UARTStreamer () {
+		print ("UART stream running");
+		while(true) {
 		try {
 			inputString = serialPort.ReadLine ();
 			print (inputString);
 			string[] input = inputString.Split (':');
 
-			if (input.Length == 16) {
-				
+			if (input.Length == 17) {
+				byte id = byte.Parse(input[0], System.Globalization.NumberStyles.HexNumber);
 				byte[] param = new byte[16];
 				for (int i = 0; i < 16; i++) {
-					param[i] = byte.Parse (input [i], System.Globalization.NumberStyles.HexNumber);
+					param[i] = byte.Parse (input [i+1], System.Globalization.NumberStyles.HexNumber);
 				}
-				/*
-				float w = ByteArrayToFloat (param, 0);
-				float x = ByteArrayToFloat (param, 4);
-				float y = ByteArrayToFloat (param, 8);
-				float z = ByteArrayToFloat (param, 12);
-				*/
 				Array.Reverse(param);
 				float w = Int32ToQuaternionFloat(ByteArrayToInt32(param, 0));
 				float x = Int32ToQuaternionFloat(ByteArrayToInt32(param, 4));
 				float y = Int32ToQuaternionFloat(ByteArrayToInt32(param, 8));
 				float z = Int32ToQuaternionFloat(ByteArrayToInt32(param, 12));
-				if (firstReading) {
-					firstReading = false;
-					initialPosition.w = w;
-					initialPosition.x = y;
-					initialPosition.y = z;
-					initialPosition.z = x;
-				}
-				TransformCube (w, x, y, z);
+					Quaternion quat = Quaternion.identity;
+					quat.w = w;
+					quat.x = x;
+					quat.y = y;
+					quat.z = z;
+						
+				switch (id) {
+					case 0x00:
+						upperArmRightQuat = quat;
+						break;
+					case 0x01:
+						lowerArmRightQuat = quat;
+						break;
+				} 
+
 			}
 		} catch (TimeoutException) {
 			print ("TIMEOUT");
 		} catch (FormatException) {
 			print ("INCORRECT FORMAT");
 		}
-		// Discard buffer in case we are not keeping up to speed with the IMUs
-		serialPort.DiscardInBuffer();
+		}
 	}
 
 	float Int32ToQuaternionFloat(int quatInt32) {
@@ -79,28 +94,8 @@ public class ArduinoBehaviourScript : MonoBehaviour
 	}
 
 	int ByteArrayToInt32(byte[] array, int index) {
-		/*
-		if (BitConverter.IsLittleEndian) {
-			Array.Reverse (array);
-		}
-		*/
 		int i = BitConverter.ToInt32(array, index);
 		return i;
-	}
-
-	float ByteArrayToFloat(byte[] array, int index) {
-		return System.BitConverter.ToSingle (array, index);
-	}
-
-	void TransformCube (float w, float x, float y, float z) {
-		Quaternion quat = Quaternion.identity;
-		quat.w = w;
-		quat.x = y;
-		quat.y = z;
-		quat.z = x;
-		//upperArmRight.transform.rotation = quat;
-		//lowerArmRight.transform.rotation = quat;
-		head.transform.rotation = quat * initialPosition;
 	}
 
 	void OpenConnection() {
@@ -123,7 +118,10 @@ public class ArduinoBehaviourScript : MonoBehaviour
 	}
 
 	void OnApplicationQuit() {
-		if (serialPort != null) serialPort.Close ();
+		if (uartThread != null)
+			uartThread.Abort ();
+		if (serialPort != null)
+			serialPort.Close ();
 	}
 }
 
