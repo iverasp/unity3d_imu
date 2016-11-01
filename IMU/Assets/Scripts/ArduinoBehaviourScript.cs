@@ -7,12 +7,14 @@ using System.Collections.Generic;
 
 public class ArduinoBehaviourScript : MonoBehaviour
 {
-
+	int QUAT_RANGE = 1073741824; // 2^30
 	public static SerialPort serialPort = new SerialPort ("/dev/cu.usbmodem1d11231", 115200);
 	public static string inputString;
 	GameObject upperArmRight;
 	GameObject lowerArmRight;
 	GameObject head;
+	Quaternion initialPosition = Quaternion.identity;
+	bool firstReading = true;
 
 	// Use this for initialization
 	void Start () {
@@ -23,7 +25,13 @@ public class ArduinoBehaviourScript : MonoBehaviour
 		head = GameObject.Find ("head");
 	}
 	
-	// Update is called once per frame
+	/*
+	 * Called once per frame.
+	 * The data from the UART is composed of 16 bytes on each line, expressed as a heximal value.
+	 * These 16 bytes represents w, x, y, z of 4 bytes each
+	 * The 4 bytes represents an 32-bit integer that is the value of the quaternion unit.
+	 * 
+	*/
 	void Update () {
 
 		try {
@@ -32,22 +40,52 @@ public class ArduinoBehaviourScript : MonoBehaviour
 			string[] input = inputString.Split (':');
 
 			if (input.Length == 16) {
+				
 				byte[] param = new byte[16];
 				for (int i = 0; i < 16; i++) {
 					param[i] = byte.Parse (input [i], System.Globalization.NumberStyles.HexNumber);
 				}
-
+				/*
 				float w = ByteArrayToFloat (param, 0);
 				float x = ByteArrayToFloat (param, 4);
 				float y = ByteArrayToFloat (param, 8);
 				float z = ByteArrayToFloat (param, 12);
+				*/
+				Array.Reverse(param);
+				float w = Int32ToQuaternionFloat(ByteArrayToInt32(param, 0));
+				float x = Int32ToQuaternionFloat(ByteArrayToInt32(param, 4));
+				float y = Int32ToQuaternionFloat(ByteArrayToInt32(param, 8));
+				float z = Int32ToQuaternionFloat(ByteArrayToInt32(param, 12));
+				if (firstReading) {
+					firstReading = false;
+					initialPosition.w = w;
+					initialPosition.x = y;
+					initialPosition.y = z;
+					initialPosition.z = x;
+				}
 				TransformCube (w, x, y, z);
 			}
 		} catch (TimeoutException) {
 			print ("TIMEOUT");
+		} catch (FormatException) {
+			print ("INCORRECT FORMAT");
 		}
 		// Discard buffer in case we are not keeping up to speed with the IMUs
 		serialPort.DiscardInBuffer();
+	}
+
+	float Int32ToQuaternionFloat(int quatInt32) {
+		return (float)quatInt32/(float)QUAT_RANGE;
+	}
+
+	int ByteArrayToInt32(byte[] array, int index) {
+		/*
+		if (BitConverter.IsLittleEndian) {
+			Array.Reverse (array);
+		}
+		*/
+		int i = BitConverter.ToInt32(array, index);
+		return i;
 	}
 
 	float ByteArrayToFloat(byte[] array, int index) {
@@ -62,7 +100,7 @@ public class ArduinoBehaviourScript : MonoBehaviour
 		quat.z = x;
 		//upperArmRight.transform.rotation = quat;
 		//lowerArmRight.transform.rotation = quat;
-		head.transform.rotation = quat;
+		head.transform.rotation = quat * initialPosition;
 	}
 
 	void OpenConnection() {
