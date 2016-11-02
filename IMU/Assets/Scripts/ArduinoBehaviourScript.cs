@@ -17,8 +17,8 @@ public class ArduinoBehaviourScript : MonoBehaviour
 	GameObject head;
 	Quaternion upperArmRightQuat = Quaternion.identity;
 	Quaternion lowerArmRightQuat = Quaternion.identity;
-	//Quaternion initialPosition = Quaternion.identity;
-	//bool firstReading = true;
+	float[] quatInitial = new float[4];
+	bool firstReading = true;
 
 	// Use this for initialization
 	void Start () {
@@ -26,6 +26,8 @@ public class ArduinoBehaviourScript : MonoBehaviour
 		OpenConnection ();
 		upperArmRight = GameObject.Find("upperarm_r");
 		lowerArmRight = GameObject.Find ("lowerarm_r");
+		upperArmRightQuat = upperArmRight.transform.rotation;
+		lowerArmRightQuat = lowerArmRight.transform.rotation;
 		head = GameObject.Find ("head");
 		ThreadStart mThreadStart = new ThreadStart (UARTStreamer);
 		uartThread = new Thread (mThreadStart);
@@ -49,43 +51,50 @@ public class ArduinoBehaviourScript : MonoBehaviour
 	void UARTStreamer () {
 		print ("UART stream running");
 		while(true) {
-		try {
-			inputString = serialPort.ReadLine ();
-			print (inputString);
-			string[] input = inputString.Split (':');
+			try {
+				inputString = serialPort.ReadLine ();
+				print (inputString);
+				string[] input = inputString.Split (':');
 
-			if (input.Length == 17) {
-				byte id = byte.Parse(input[0], System.Globalization.NumberStyles.HexNumber);
-				byte[] param = new byte[16];
-				for (int i = 0; i < 16; i++) {
-					param[i] = byte.Parse (input [i+1], System.Globalization.NumberStyles.HexNumber);
-				}
-				Array.Reverse(param);
-				float w = Int32ToQuaternionFloat(ByteArrayToInt32(param, 0));
-				float x = Int32ToQuaternionFloat(ByteArrayToInt32(param, 4));
-				float y = Int32ToQuaternionFloat(ByteArrayToInt32(param, 8));
-				float z = Int32ToQuaternionFloat(ByteArrayToInt32(param, 12));
+				if (input.Length == 17) {
+					byte id = byte.Parse(input[0], System.Globalization.NumberStyles.HexNumber);
+					byte[] param = new byte[16];
+					for (int i = 0; i < 16; i++) {
+						param[i] = byte.Parse (input [i+1], System.Globalization.NumberStyles.HexNumber);
+					}
+					Array.Reverse(param);
+					float w = Int32ToQuaternionFloat(ByteArrayToInt32(param, 0));
+					float x = Int32ToQuaternionFloat(ByteArrayToInt32(param, 4));
+					float y = Int32ToQuaternionFloat(ByteArrayToInt32(param, 8));
+					float z = Int32ToQuaternionFloat(ByteArrayToInt32(param, 12));
+					if (firstReading) {
+						firstReading = false;
+						quatInitial[0] = w;
+						quatInitial[1] = x;
+						quatInitial[2] = y;
+						quatInitial[3] = z;
+					}
 					Quaternion quat = Quaternion.identity;
-					quat.w = w;
-					quat.x = x;
-					quat.y = y;
-					quat.z = z;
-						
-				switch (id) {
-					case 0x00:
-						upperArmRightQuat = quat;
-						break;
-					case 0x01:
-						lowerArmRightQuat = quat;
-						break;
+					quat.w = w - quatInitial[0];
+					quat.x = x - quatInitial[1];
+					quat.y = y - quatInitial[2];
+					quat.z = z - quatInitial[3];
+					lowerArmRightQuat = quat;
+					/*
+					switch (id) {
+						case 0x00:
+							upperArmRightQuat = quat;
+							break;
+						case 0x01:
+							lowerArmRightQuat = quat;
+							break;
+					*/
 				} 
-
+			} catch (TimeoutException) {
+				print ("TIMEOUT");
+			} catch (FormatException) {
+				print ("INCORRECT FORMAT");
 			}
-		} catch (TimeoutException) {
-			print ("TIMEOUT");
-		} catch (FormatException) {
-			print ("INCORRECT FORMAT");
-		}
 		}
 	}
 
